@@ -77,3 +77,36 @@ test('private key redacted', () => {
   const out = redactSecrets('-----BEGIN RSA PRIVATE KEY-----\nabc==\n-----END RSA PRIVATE KEY-----');
   assert.ok(out.includes('[PRIVATE-KEY]'));
 });
+
+// --- v0.2.1 regression: TOKEN redaction leak ---
+
+test('long token (32+ chars, no suffix) fully redacted — no leak', () => {
+  const secret = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const out = redactSecrets(`TOKEN=${secret}`);
+  assert.equal(out.includes(secret), false, 'secret must not appear in output');
+  assert.ok(out.includes('[SECRET]') || out.includes('[TOKEN]'), 'must carry a redaction marker');
+});
+
+test('long token with trailing space redacted (regression of $1 leak)', () => {
+  const secret = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const out = redactSecrets(`TOKEN=${secret} `);
+  assert.equal(out.includes(secret), false, 'secret must not appear in output');
+  assert.ok(out.includes('[SECRET]') || out.includes('[TOKEN]'), 'must carry a redaction marker');
+});
+
+test('bearer token with trailing space fully redacted', () => {
+  const secret = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const out = redactSecrets(`Authorization: Bearer ${secret} `);
+  assert.equal(out.includes(secret), false, 'token must not leak');
+  assert.ok(out.includes('[TOKEN]'));
+});
+
+test('api key and github pat redacted', () => {
+  const sk = 'sk-abcDEF123456789012345678901234';
+  const pat = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';
+  const out = redactSecrets(`key=${sk}\npat=${pat}`);
+  assert.equal(out.includes(sk), false);
+  assert.equal(out.includes(pat), false);
+  assert.ok(out.includes('[SK-KEY]'));
+  assert.ok(out.includes('[GHP-TOKEN]'));
+});
