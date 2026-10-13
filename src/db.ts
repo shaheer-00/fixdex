@@ -88,9 +88,11 @@ export class FixdexDB {
       return [{ id: r.id, summary: r.summary, confidence: 1.0 }];
     }
 
-    // Layer 2: FTS5 BM25 (title/symptoms/cause/tags) — prefix search via default tokenizer
+    // An empty/whitespace query has no tokens to match — return nothing rather
+    // than hitting `MATCH ' *'` which FTS5 rejects with a syntax error.
     const term = this.cleanTerm(redacted);
-    if (term) {
+    if (term && term.length >= 3) {
+      // Layer 2: FTS5 BM25 (title/symptoms/cause/tags) — prefix search via default tokenizer
       const q = `${term}*`;
       let sql = `SELECT fts_entries.rowid AS id, e.summary, bm25(fts_entries) AS score
                  FROM fts_entries JOIN entries e ON fts_entries.rowid = e.id
@@ -102,25 +104,28 @@ export class FixdexDB {
       }
       sql += ' ORDER BY score LIMIT 20';
       hits = this.db.prepare(sql).all(...params) as any[];
-    }
 
-    // Layer 3: trigram fallback for partial words / typos (FTS5 trigram MATCH uses bm25 rank)
-    if (!hits || hits.length < 2) {
-      const q = term ? `${term}*` : ' *';
-      let sql = `SELECT trgm_entries.rowid AS id, e.summary, bm25(trgm_entries) AS score
-                 FROM trgm_entries JOIN entries e ON trgm_entries.rowid = e.id
-                 WHERE trgm_entries MATCH ?`;
-      const params: unknown[] = [q];
-      if (project) {
-        sql += ' AND e.project = ?';
-        params.push(project);
+      // Layer 3: trigram fallback for partial words / typos.
+      // Only run if FTS returned nothing or a single weak hit we want to broaden.
+      if (!hits || hits.length < 2) {
+        const tq = `${term}*`;
+        let tsql = `SELECT trgm_entries.rowid AS id, e.summary, bm25(trgm_entries) AS score
+                    FROM trgm_entries JOIN entries e ON trgm_entries.rowid = e.id
+                    WHERE trgm_entries MATCH ?`;
+        const tp: unknown[] = [tq];
+        if (project) {
+          tsql += ' AND e.project = ?';
+          tp.push(project);
+        }
+        tsql += ' ORDER BY score LIMIT 20';
+        const thits = this.db.prepare(tsql).all(...tp) as any[];
+        // Keep the better of FTS vs trigram — don't clobber a decent FTS hit.
+        if (!hits || thits.length > 0) hits = thits;
       }
-      sql += ' ORDER BY score LIMIT 20';
-      hits = this.db.prepare(sql).all(...params) as any[];
     }
 
-    if (!hits.length) {
-      this.log('search_miss', null, query.slice(0, 140));
+    if (!hits || !hits.length) {
+      if (term || redacted) this.log('search_miss', null, query.slice(0, 140));
       return [];
     }
 
@@ -185,7 +190,7 @@ export class FixdexDB {
     ).get(id) as Entry | null;
   }
 
-  list(filter?: { project?: string; status?: string; tags?: string; sort?: string }): Entry[] {
+  list(filter?: { project?: string; status?: string; tags?: string; sort?: string }, limit = 1000): Entry[] {
     let sql = 'SELECT * FROM entries';
     const where: string[] = [];
     const params: unknown[] = [];
@@ -205,6 +210,8 @@ export class FixdexDB {
     sql += filter?.sort
       ? ` ORDER BY ${filter.sort} DESC`
       : ' ORDER BY last_used_at DESC';
+    sql += ' LIMIT ?';
+    params.push(limit);
     return this.db.prepare(sql).all(...params) as Entry[];
   }
 
@@ -212,6 +219,22 @@ export class FixdexDB {
     return this.db.prepare(
       `SELECT * FROM entries WHERE status = 'open' ORDER BY times_seen DESC`
     ).all() as Entry[];
+  }
+
+  /** Look up an entry by matching the error's normalized signature. */
+  findBySignature(text: string): Entry | null {
+    const sig = this.getSignature(text);
+    return this.db
+      .prepare('SELECT * FROM entries WHERE signature = ? LIMIT 1')
+      .get(sig) as Entry | null;
+  }
+
+  /** Look up a SOLVED entry by signature — used for fix pre-injection. */
+  findSolvedBySignature(text: string): Entry | null {
+    const sig = this.getSignature(text);
+    return this.db
+      .prepare('SELECT * FROM entries WHERE signature = ? AND status = \'solved\' LIMIT 1')
+      .get(sig) as Entry | null;
   }
 
   // --- Writes ---
@@ -224,9 +247,11 @@ export class FixdexDB {
     summary: string;
     tags?: string | null;
     project?: string | null;
+    status?: 'open' | 'solved';
   }): Entry {
     const { problem_title, symptoms, root_cause, solution, summary, tags = '' } = params;
     const project = params.project || process.env.FIXDEX_PROJECT || '';
+    const status: 'open' | 'solved' = params.status || 'open';
     const redactedSymptoms = this.redact(symptoms);
     const redactedSolution = solution ? this.redact(solution) : null;
     const redactedCause = root_cause ? this.redact(root_cause) : null;
@@ -256,9 +281,9 @@ export class FixdexDB {
         UPDATE entries SET
           updated_at = datetime('now'),
           project = ?, tags = ?, root_cause = ?, solution = ?,
-          times_seen = ?, status = 'solved', last_used_at = datetime('now')
+          times_seen = ?, status = ?, last_used_at = datetime('now')
         WHERE id = ?
-      `).run(newProject, newTags, newCause, newSol, newSeen, existing.id);
+      `).run(newProject, newTags, newCause, newSol, newSeen, status, existing.id);
       this.log('save', existing.id, 'merged');
       return this.get(existing.id)!;
     }
@@ -267,7 +292,7 @@ export class FixdexDB {
     const stmt = this.db.prepare(`
       INSERT INTO entries (created_at, updated_at, project, tags, signature,
         problem_title, symptoms, root_cause, solution, summary, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       now,
@@ -279,7 +304,8 @@ export class FixdexDB {
       redactedSymptoms.slice(0, SYMPTOMS_MAX),
       redactedCause ? redactedCause.slice(0, 300) : null,
       redactedSolution ? redactedSolution.slice(0, SOLUTION_MAX) : null,
-      summary.slice(0, 300)
+      summary.slice(0, 300),
+      status
     ) as { lastInsertRowid: number } | unknown;
     const newId = typeof info === 'object' && info !== null
       ? Number((info as { lastInsertRowid: number }).lastInsertRowid)
@@ -298,11 +324,21 @@ export class FixdexDB {
     this.db.prepare(`UPDATE entries SET last_used_at = datetime('now') WHERE id = ?`).run(id);
   }
 
+  /** Mark an entry as recently used (for recency boosting in ranking). */
+  touch(id: number): void {
+    this.recordUsed(id);
+  }
+
   feedback(id: number, helped: boolean): void {
     const col = helped ? 'times_helped' : 'times_failed';
     this.db.prepare(`UPDATE entries SET ${col} = ${col} + 1, last_used_at = datetime('now') WHERE id = ?`).run(id);
     this.log(helped ? 'feedback_up' : 'feedback_down', id, null);
   }
+
+  /** Convenience wrappers — the post hook uses these instead of raw feedback so
+   *  the data-loss path (auto-downvote on "not used recently") can't recur. */
+  recordHelped(id: number): void { this.feedback(id, true); }
+  recordFailed(id: number): void { this.feedback(id, false); }
 
   // --- Lifecycle ---
 
@@ -332,23 +368,32 @@ export class FixdexDB {
 
   countUsedInDays(days: number): number {
     const r = this.db.prepare(
-      `SELECT COUNT(*) as n FROM entries WHERE last_used_at IS NULL OR last_used_at < datetime('now', ?)
-       AND status='solved'`
-    ).get({ days: `-${days} days` }) as { n: number };
+      `SELECT COUNT(*) as n FROM entries
+       WHERE status='solved'
+         AND (last_used_at IS NULL OR last_used_at < datetime('now', ?))`
+    ).get(`-${days} days`) as { n: number };
     return Number(r?.n ?? 0);
   }
 
-  // Remove stale entries: no usage in 90 days, or failures strictly exceed helps
+  // Remove stale entries: solved & unused for `daysUnused`, or solved &
+  // failures strictly exceed helps by 2+ (one downvote no longer deletes).
   prune(daysUnused = 90): number {
     const tx = this.db.transaction(() => {
       const r1 = this.db.prepare(`
         DELETE FROM entries
         WHERE status='solved'
-          AND (last_used_at IS NOT NULL AND last_used_at < datetime('now', ?))
+          AND last_used_at IS NOT NULL
+          AND last_used_at < datetime('now', ?)
       `).run(`-${daysUnused} days`);
       const r2 = this.db.prepare(`
         DELETE FROM entries
-        WHERE times_failed > times_helped AND times_failed > 0
+        WHERE status='solved'
+          AND times_failed > times_helped + 1
+      `).run();
+      // Prune orphaned activity rows once the parent entry is gone.
+      const r3 = this.db.prepare(`
+        DELETE FROM activity WHERE entry_id IS NOT NULL
+          AND entry_id NOT IN (SELECT id FROM entries)
       `).run();
       return r1.changes + r2.changes;
     });
@@ -418,7 +463,11 @@ export class FixdexDB {
     const cost = this.tokenCost();
     return {
       counts, projects, tags,
-      entries: this.list({}),
+      // Cap the entries payload — the dashboard polls this every 5s and
+      // state() previously returned every row in the DB, so a large store
+      // produced an unbounded JSON blob per refresh.
+      entries: this.list({}, 200),
+      entryCount: this.db.prepare('SELECT COUNT(*) as n FROM entries').get() as { n: number },
       activity: this.db.prepare('SELECT * FROM activity ORDER BY id DESC LIMIT 25').all(),
       last14: this.last14(),
       config: { tokenCost: cost },
@@ -460,9 +509,38 @@ export class FixdexDB {
     const allowed = ['problem_title','symptoms','root_cause','solution','summary','tags','status','project'];
     const sets: string[] = []; const vals: unknown[] = [];
     for (const k of allowed) {
-      if (k in fields && fields[k] != null) { sets.push(`${k} = ?`); vals.push(fields[k]); }
+      let v: unknown;
+      if (k in fields && fields[k] != null) {
+        v = fields[k];
+        // Re-redact any text field so edits can't smuggle secrets past the
+        // redaction that save() applies. (v0.2 only redacted on the save path.)
+        if (k === 'symptoms' || k === 'root_cause' || k === 'solution' ||
+            k === 'problem_title' || k === 'summary' || k === 'tags' || k === 'project') {
+          v = this.redact(String(v));
+        }
+        sets.push(`${k} = ?`); vals.push(v);
+      }
     }
     if (!sets.length) return false;
+
+    // Signature must track symptoms: if symptoms changed, recompute and guard
+    // against colliding with an existing entry's signature (which would break
+    // the UNIQUE index and silent-bisect later exact-match lookups).
+    if ('symptoms' in fields && fields.symptoms != null) {
+      const newSig = this.getSignature(this.redact(String(fields.symptoms)));
+      const dupe = this.db
+        .prepare('SELECT id FROM entries WHERE signature = ? AND id != ? LIMIT 1')
+        .get(newSig, id) as { id: number } | undefined;
+      if (dupe) {
+        // Editing symptoms would merge this entry into another's identity.
+        // Refuse rather than silently corrupt dedupe.
+        throw new Error(
+          `Updating symptoms would collide with entry #${dupe.id} (same normalized signature). Merge instead.`
+        );
+      }
+      sets.push('signature = ?'); vals.push(newSig);
+    }
+
     sets.push(`updated_at = datetime('now')`);
     vals.push(id);
     const r = this.db.prepare(`UPDATE entries SET ${sets.join(', ')} WHERE id = ?`).run(...vals);

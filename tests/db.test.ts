@@ -69,3 +69,67 @@ test('counts correct', () => {
   const c = db.counts();
   assert.equal(c.total, c.solved + c.open);
 });
+
+// --- v0.2.1 regression tests ---
+
+test('save accepts status and persists it', () => {
+  const e = db.save({
+    problem_title: 'Custom status', symptoms: 'boom', summary: 's',
+    tags: 't', project: 'p', status: 'solved',
+  });
+  assert.equal(e.status, 'solved');
+});
+
+test('save defaults to open', () => {
+  const e = db.save({ problem_title: 'Open item', symptoms: 'boom', summary: 's' });
+  assert.equal(e.status, 'open');
+});
+
+test('empty query search returns [] not a crash', () => {
+  const hits = db.search('');
+  assert.deepEqual(hits, []);
+});
+
+test('update recomputes signature when symptoms change', () => {
+  const e = db.save({
+    problem_title: 'Original', symptoms: 'Error: path to /a.ts:1',
+    root_cause: 'rc', solution: 'sol', summary: 's',
+  });
+  const oldSig = e.signature;
+  assert.equal(db.update(e.id, { symptoms: 'Error: path to /b.ts:2, different' }), true);
+  const updated = db.get(e.id)!;
+  assert.notEqual(updated.signature, oldSig, 'signature must change with symptoms');
+  const hits = db.search('Error: path to /b.ts:2, different');
+  assert.ok(hits.length >= 1, 'new symptoms must resolve via exact match');
+});
+
+test('update redacts secrets on each field', () => {
+  const e = db.save({
+    problem_title: 'Leak', symptoms: 'fail here', summary: 's',
+  });
+  db.update(e.id, { solution: 'sk-abcdefghijklmnopqrstuvwxyz0123456789' });
+  const u = db.get(e.id)!;
+  assert.equal(u.solution, '[SK-KEY]', 'solution must be redacted on update');
+});
+
+test('update refuses symptom edit that collides with another entry signature', () => {
+  // Use text that produces distinct signatures (normalizeSignature strips
+  // bare numbers, so 'unique-1' and 'unique-2' hash identically).
+  const a = db.save({ problem_title: 'A', symptoms: 'Error alpha in module', summary: 's1' });
+  const b = db.save({ problem_title: 'B', symptoms: 'Error beta in module', summary: 's2' });
+  const bSymptoms = db.get(b.id)!.symptoms;
+  assert.notEqual(a.signature, b.signature, 'seed data must be distinct signatures');
+  assert.throws(() => db.update(a.id, { symptoms: bSymptoms }), /collide/);
+});
+
+test('prune keeps solved entries with one failure (no auto-downvote deletion)', () => {
+  const e = db.save({
+    problem_title: 'Fragile fix', symptoms: 'flaky', summary: 's',
+    root_cause: 'rc', solution: 'sol',
+  });
+  db.update(e.id, { status: 'solved' });
+  db.feedback(e.id, false); // one downvote
+  const pruned = db.prune(0); // 0 days = prune everything stale
+  const stillThere = db.get(e.id);
+  assert.ok(stillThere, 'entry with one failure must survive prune');
+});
