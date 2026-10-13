@@ -51,7 +51,7 @@ safeHook(() => {
   // Only the Bash tool is wired up (settings.json matcher="Bash"). Still, guard
   // so a stray payload never breaks the session.
   const counters = loadCounters();
-  const counter = new FixdexDB();
+  const counter = new FixdexDB(process.env.FIXDEX_DB);
   try {
     const text = failureText(input);
     const sig = counter.getSignature(text);

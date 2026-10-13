@@ -11,7 +11,7 @@ safeHook(() => {
   const { prompt } = readHookInput<{ prompt?: string }>();
   if (!prompt) return;
 
-  const db = new FixdexDB();
+  const db = new FixdexDB(process.env.FIXDEX_DB);
   try {
     const hit = db.findSolvedBySignature(prompt);
     if (hit) {

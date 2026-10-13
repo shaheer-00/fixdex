@@ -8,7 +8,7 @@ import { readHookInput, safeHook, clearCounters, emitSystemMessage } from './io.
 
 safeHook(() => {
   const input = readHookInput<{ transcript?: string }>();
-  const db = new FixdexDB();
+  const db = new FixdexDB(process.env.FIXDEX_DB);
   try {
     const open = db.openProblems();
     const transcript = input.transcript ?? '';
