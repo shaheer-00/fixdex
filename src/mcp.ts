@@ -1,5 +1,6 @@
 // Fixdex MCP server (stdio)
 import { FixdexDB } from './db.js';
+import { PACKAGE_VERSION } from './version.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -8,9 +9,13 @@ import { z } from 'zod';
 const db = new FixdexDB();
 
 const server = new Server(
-  { name: 'fixdex', version: '0.1.0' },
+  { name: 'fixdex', version: PACKAGE_VERSION },
   { capabilities: { tools: {} } }
 );
+
+// MCP inputSchema must be a plain JSON Schema object, not a zod object.
+// zod v4: z.toJSONSchema(zodSchema) -> JSONSchema7-like object.
+const jsonSchema = (s: z.ZodType) => z.toJSONSchema(s) as Record<string, unknown>;
 
 const ToolSchema = {
   fixdex_search: z.object({
@@ -32,13 +37,21 @@ const ToolSchema = {
   fixdex_open: z.object({}),
 };
 
+const ToolInputSchema = {
+  fixdex_search: jsonSchema(ToolSchema.fixdex_search),
+  fixdex_get: jsonSchema(ToolSchema.fixdex_get),
+  fixdex_save: jsonSchema(ToolSchema.fixdex_save),
+  fixdex_feedback: jsonSchema(ToolSchema.fixdex_feedback),
+  fixdex_open: jsonSchema(ToolSchema.fixdex_open),
+};
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
-    { name: 'fixdex_search', description: 'Search Fixdex for known fixes. Returns top 3 summaries + confidence.', inputSchema: ToolSchema.fixdex_search },
-    { name: 'fixdex_get',    description: 'Fetch full entry by ID.', inputSchema: ToolSchema.fixdex_get },
-    { name: 'fixdex_save',   description: 'Save a problem+fix (deduped on signature).', inputSchema: ToolSchema.fixdex_save },
-    { name: 'fixdex_feedback', description: 'Rate if a fix helped (ranks it up/down).', inputSchema: ToolSchema.fixdex_feedback },
-    { name: 'fixdex_open',   description: 'List unresolved repeated problems.', inputSchema: ToolSchema.fixdex_open },
+    { name: 'fixdex_search', description: 'Search Fixdex for known fixes. Returns top 3 summaries + confidence.', inputSchema: ToolInputSchema.fixdex_search },
+    { name: 'fixdex_get',    description: 'Fetch full entry by ID.', inputSchema: ToolInputSchema.fixdex_get },
+    { name: 'fixdex_save',   description: 'Save a problem+fix (deduped on signature).', inputSchema: ToolInputSchema.fixdex_save },
+    { name: 'fixdex_feedback', description: 'Rate if a fix helped (ranks it up/down).', inputSchema: ToolInputSchema.fixdex_feedback },
+    { name: 'fixdex_open',   description: 'List unresolved repeated problems.', inputSchema: ToolInputSchema.fixdex_open },
   ],
 }));
 

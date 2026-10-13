@@ -10,6 +10,22 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const HTML = join(__dir, '..', 'web', 'ui.html');
 const db = new FixdexDB();
 const PORT = Number(process.env.FIXDEX_PORT || 4747);
+const HOST = process.env.FIXDEX_HOST || '127.0.0.1';
+const ALLOWED_ORIGINS = new Set(
+  (process.env.FIXDEX_ALLOWED_ORIGINS || `http://localhost:${PORT},http://127.0.0.1:${PORT}`).split(',')
+);
+
+// Mutations require a same-origin request — the UI is the only legitimate caller.
+function isMutating(method: string, path: string): boolean {
+  if (method !== 'POST') return false;
+  return /^\/api\/(save|delete|merge|prune|update|import|config)/.test(path);
+}
+
+function originAllowed(req: http.IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true; // non-browser / same-machine CLI caller
+  return ALLOWED_ORIGINS.has(origin);
+}
 
 function sendJson(res: http.ServerResponse, code: number, body: unknown) {
   res.writeHead(code, { 'Content-Type': 'application/json' });
@@ -29,6 +45,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://localhost');
   const path = url.pathname;
   const method = req.method || 'GET';
+
+  if (isMutating(method, path) && !originAllowed(req)) {
+    sendJson(res, 403, { error: 'origin not allowed' });
+    return;
+  }
 
   try {
     if (method === 'GET' && (path === '/' || path === '/index.html')) {
@@ -110,6 +131,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Fixdex UI → http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Fixdex UI → http://${HOST}:${PORT}`);
 });
