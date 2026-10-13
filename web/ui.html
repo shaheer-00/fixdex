@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fixdex</title>
+<style>
+:root{--bg:#07080c;--panel:#10131b;--panel-hover:#141720;--border:rgba(255,255,255,.065);--border-hover:rgba(255,255,255,.16);--text:#eceff5;--muted:#9aa3b5;--faint:#5c6577;--accent:#5b8cff;--accent-soft:rgba(91,140,255,.13);--open:#e6b450;--done:#3ecf8e;--done-soft:rgba(62,207,142,.13);--danger:#ff6b6b;--danger-soft:rgba(255,107,107,.12);--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 34px rgba(2,4,10,.45),0 2px 8px rgba(2,4,10,.3);--ease:cubic-bezier(.16,1,.3,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{color-scheme:dark;scroll-behavior:smooth}
+body{background:radial-gradient(1100px 600px at 88% -12%,rgba(91,140,255,.085),transparent 62%),radial-gradient(800px 500px at -8% 108%,rgba(62,207,142,.05),transparent 60%),radial-gradient(600px 400px at 55% 118%,rgba(230,180,80,.035),transparent 55%),var(--bg);color:var(--text);font:14px/1.55 -apple-system,"Segoe UI Variable","Segoe UI",Roboto,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+.wrap{position:relative;z-index:1;padding:26px 30px 64px}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+header h1{font-size:17px;font-weight:650;color:var(--accent);letter-spacing:-.01em}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.status .dot{width:7px;height:7px;border-radius:50%;background:var(--done);position:relative}
+.status .dot::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1.5px solid var(--done);opacity:0;animation:ping 2.4s var(--ease) infinite}
+@keyframes ping{0%{transform:scale(.5);opacity:.8}70%,100%{transform:scale(1.5);opacity:0}}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 16px 14px;position:relative;overflow:hidden;box-shadow:var(--shadow);transition:border-color .35s var(--ease),transform .35s var(--ease),box-shadow .35s var(--ease);animation:fadeUp .5s var(--ease) backwards}
+.card:nth-child(2){animation-delay:.05s}.card:nth-child(3){animation-delay:.1s}.card:nth-child(4){animation-delay:.15s}.card:nth-child(5){animation-delay:.2s}
+.card:hover{border-color:var(--border-hover);transform:translateY(-2px);box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 16px 44px rgba(2,4,10,.55),0 3px 10px rgba(2,4,10,.35)}
+.card .num{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
+.card .lbl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin-top:2px}
+.card.open .num{color:var(--open)}.card.done .num{color:var(--done)}.card.accent .num{color:var(--accent)}
+.card .ic{position:absolute;top:14px;right:14px;color:var(--faint);opacity:.55}
+.card:hover .ic{opacity:1}
+.layout{display:grid;grid-template-columns:232px 1fr;gap:14px;align-items:start}
+.side{position:sticky;top:20px;display:flex;flex-direction:column;gap:12px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow);animation:fadeUp .55s var(--ease) .12s backwards}
+.main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel>h2{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px;font-weight:600}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.proj{padding:7px 10px;border-radius:9px;cursor:pointer;display:flex;gap:8px;justify-content:space-between;align-items:center;font-size:13px;transition:background .2s var(--ease);outline:1px solid transparent}
+.proj:hover{background:var(--panel-hover)}
+.proj.active{background:var(--accent-soft);outline-color:rgba(91,140,255,.4)}
+.proj .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proj .cnt{font-size:11px;color:var(--open);flex-shrink:0;font-variant-numeric:tabular-nums}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.search{position:relative;flex:1;min-width:200px;max-width:380px}
+.search input{width:100%;background:#0a0d14;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 12px;font:inherit;outline:none;transition:border-color .25s var(--ease),box-shadow .25s var(--ease)}
+.search input:focus{border-color:rgba(91,140,255,.55);box-shadow:0 0 0 3px rgba(91,140,255,.12)}
+.chips{display:flex;gap:6px}
+.chip{border:1px solid var(--border);background:rgba(255,255,255,.035);color:var(--muted);border-radius:999px;padding:6px 13px;font:12.5px inherit;cursor:pointer;transition:all .2s var(--ease)}
+.chip:hover{border-color:var(--border-hover);color:var(--text)}
+.chip.active{background:var(--accent-soft);border-color:rgba(91,140,255,.5);color:#b3c7ff}
+.item{border-radius:9px;padding:10px 12px;margin-bottom:4px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;border:1px solid transparent;transition:background .2s var(--ease),border-color .2s var(--ease),transform .2s var(--ease)}
+.item:hover{background:var(--panel-hover);border-color:var(--border)}
+.item .sum{flex:1;min-width:0;overflow-wrap:break-word}
+.tag{font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:1px 6px;margin-left:7px;white-space:nowrap}
+.tag.open-tag{color:var(--open);border-color:rgba(230,180,80,.35)}
+.tag.done-tag{color:var(--done);border-color:rgba(62,207,142,.35)}
+.proj-tag{color:var(--faint)}
+.btns{display:flex;gap:6px;flex-shrink:0}
+.btns button,.mini-btn{background:rgba(255,255,255,.045);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;transition:all .18s var(--ease);font-family:inherit}
+.btns button:hover{border-color:var(--border-hover);color:var(--text);transform:translateY(-1px)}
+.btns button:active{transform:translateY(0) scale(.96)}
+.btns button.ok:hover{border-color:var(--done);color:var(--done);background:var(--done-soft)}
+.btns button.no:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+.btns button.merge:hover{border-color:var(--accent);color:#a8c0ff;background:var(--accent-soft)}
+.detail{border-radius:9px;margin:0 12px 4px;overflow:hidden;transition:height .35s var(--ease)}
+.detail-inner{padding:12px 14px;border:1px solid rgba(255,255,255,.05);border-radius:9px;background:rgba(3,5,10,.42)}
+.detail pre{background:#0a0d14;border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;font-size:.82em;white-space:pre-wrap}
+.meta-row{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:8px}
+.meta-row b{color:var(--faint);font-weight:600;text-transform:uppercase;font-size:10px;margin-right:4px}
+.mono{font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;font-size:11px;color:var(--faint)}
+.empty{color:var(--muted);padding:20px;text-align:center}
+.empty .big{font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px}
+.empty .sub{font-size:12px;color:var(--faint)}
+.addrow{display:flex;gap:8px;margin-top:12px}
+.addrow input{flex:1;background:#0a0d14;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 12px;font:inherit;outline:none}
+.addrow input:focus{border-color:rgba(91,140,255,.55)}
+.addrow button{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:8px 16px;cursor:pointer;font:600 13px inherit;font-family:inherit;transition:all .2s var(--ease)}
+.addrow button:hover{filter:brightness(1.12);transform:translateY(-1px)}
+#toasts{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:50}
+.toast{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border-hover);border-radius:11px;padding:10px 14px;font-size:13px;box-shadow:var(--shadow);animation:toastIn .4s var(--ease);max-width:320px}
+.toast.leaving{animation:toastOut .3s var(--ease) forwards}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px) scale(.95)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateX(30px) scale(.95)}}
+.chart{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+.chart-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.charts{display:grid;grid-template-columns:1fr 240px;gap:14px;margin-bottom:14px}
+.legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:8px}
+.legend .sw{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+@media (max-width:768px){.layout{grid-template-columns:1fr}.charts{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Fixdex</h1>
+  <span class="status"><span class="dot"></span><span id="status-txt">live</span></span>
+  <span id="sync" style="margin-left:auto;font-size:11px;color:var(--faint)"></span>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<div class="toolbar">
+  <div class="search">
+    <input id="q" type="text" placeholder="Search errors by text or signature..." autocomplete="off" />
+  </div>
+  <div class="chips" id="chips">
+    <button class="chip active" data-f="solved">Solved</button>
+    <button class="chip" data-f="open">Open</button>
+    <button class="chip" data-f="all">All</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="side">
+    <div class="panel">
+      <h2>Projects</h2>
+      <div id="projects"></div>
+    </div>
+    <div class="panel">
+      <h2>Tags</h2>
+      <div id="tags"></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="charts">
+      <div class="chart">
+        <div class="chart-title">Searches vs hits · last 14 days</div>
+        <div id="chart-days"></div>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--open)"></span>searches</span>
+          <span><span class="sw" style="background:var(--done)"></span>hits</span>
+        </div>
+      </div>
+      <div class="chart">
+        <div class="chart-title">Status</div>
+        <div id="chart-status"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 id="items-title">Entries</h2>
+      <div id="items"></div>
+      <div class="addrow">
+        <input id="add-input" placeholder="Quick-save: problem → fix (one line)..." maxlength="300" />
+        <button id="add-btn">Save</button>
+      </div>
+    </div>
+
+    <div class="panel" id="settings-panel">
+      <h2>Settings</h2>
+      <div class="meta-row">
+        <span><b>Token cost per hit</b><input id="token-cost" type="number" min="50" max="1000" step="50" value="150" style="width:80px;background:#0a0d14;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px" /></span>
+        <button class="mini-btn" id="btn-save-config">Save</button>
+        <button class="mini-btn" id="btn-prune">Prune stale</button>
+        <button class="mini-btn" id="btn-export">Export JSON</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+<div id="toasts"></div>
+
+<script>
+let STATE=null, filter='solved', activeProject=null, activeTag=null, query='', expanded=new Set(), seenIds=new Set(), confirmTimers=new Map();
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(p,b){
+  const r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:undefined);
+  return r.json();
+}
+
+function toast(msg,type='ok',ms=3000){
+  const el=document.createElement('div');
+  el.className='toast '+type;
+  el.innerHTML=`<span class="ic ${type}">${type==='ok'?'✓':'!'}</span><span>${esc(msg)}</span>`;
+  $('toasts').appendChild(el);
+  setTimeout(()=>{el.classList.add('leaving');setTimeout(()=>el.remove(),300)},ms);
+}
+
+function setNum(el,v,suffix=''){
+  const prev=el.dataset.v!==undefined?+el.dataset.v:null;
+  if(prev===v){el.textContent=v+suffix;return}
+  el.dataset.v=v;
+  const t0=performance.now(),dur=500;
+  (function tick(t){
+    const p=Math.min(1,(t-t0)/dur);
+    const eased=1-Math.pow(1-p,3);
+    el.textContent=Math.round(prev+(v-prev)*eased)+suffix;
+    if(p<1)requestAnimationFrame(tick);
+  })(t0);
+}
+
+function age(ts){
+  if(!ts)return'';
+  const d=Math.max(0,Math.round((Date.now()-new Date(ts).getTime())/86400000));
+  if(d===0)return'today';if(d===1)return'yesterday';
+  if(d<14)return d+'d ago';if(d<60)return Math.round(d/7)+'w ago';
+  return Math.round(d/30)+'mo ago';
+}
+
+async function refresh(){
+  try{
+    STATE=await api('/api/state');
+    $('status-txt').textContent='live';
+    render();
+  }catch(e){
+    $('status-txt').textContent='offline';
+  }
+  $('sync').textContent='synced '+(new Date()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+
+function render(){
+  if(!STATE)return;
+  renderStats();
+  renderFilters();
+  renderProjects();
+  renderTags();
+  drawCharts();
+  renderItems();
+}
+
+function renderStats(){
+  const c=STATE.counts;
+  $('stats').innerHTML=`
+    <div class="card accent"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg><div class="num num" id="s-total">${c.total}</div><div class="lbl">Entries</div></div>
+    <div class="card done"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg><div class="num">${c.solved}</div><div class="lbl">Solved</div></div>
+    <div class="card open"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/></svg><div class="num">${c.open}</div><div class="lbl">Open</div></div>
+    <div class="card accent"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.5 1.5M17.2 17.2l1.5 1.5M18.7 5.3l-1.5 1.5M6.8 17.2l-1.5 1.5"/></svg><div class="num">${c.searches7d}</div><div class="lbl">Searches 7d</div></div>
+    <div class="card done"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg><div class="num">${c.hits7d}</div><div class="lbl">Hits 7d</div></div>
+    <div class="card done"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 2.8c1 3-1.2 4.4-2.1 6C8.7 10.8 8.5 12.5 9 14c-1.6-.6-2.5-2-2.6-3.6C4.6 12.4 4.5 15 5.7 17.2 7.4 20.3 11 21.6 14.3 20.5c3.4-1.2 5.3-4.8 4.2-8.2-.8-2.4-2.8-4-4.2-6.1-.9-1.2-1.6-2.2-2.3-3.4z"/></svg><div class="num">${(STATE.estSavedTokens/1000).toFixed(1)}k</div><div class="lbl">Tokens saved est</div></div>
+  `;
+}
+
+function renderFilters(){$('items-title').textContent=(filter==='open'?'Open problems':filter==='all'?'All entries':'Solved')+(activeProject?' · '+activeProject:'')}
+
+function renderProjects(){
+  const all=`<div class="proj proj-all ${activeProject===null?'active':''}" data-p=""><span class="name">All projects</span><span class="cnt">${STATE.counts.total}</span></div>`;
+  const own=(STATE.projects||[]).map(p=>{
+    const cls='proj'+(p.project===activeProject?' active':'');
+    const cntCls=(p.open>0)?'cnt':'cnt';
+    return `<div class="${cls}" data-p="${esc(p.project||'')}"><span class="name">${esc(p.project||'—')}</span><span class="${cntCls}">${p.solved}/${p.open+p.solved}</span></div>`;
+  }).join('');
+  $('projects').innerHTML=all+own;
+  $('projects').querySelectorAll('.proj').forEach(el=>el.addEventListener('click',()=>{
+    activeProject=el.dataset.p||null;render();
+  }));
+}
+
+function renderTags(){
+  const tags=(STATE.tags||[]).slice(0,20);
+  $('tags').innerHTML=tags.length?tags.map(t=>
+    `<div class="proj ${t.name===activeTag?'active':''}" data-t="${esc(t.name)}"><span class="name">${esc(t.name)}</span><span class="cnt">${t.n}</span></div>`
+  ).join(''):'<div class="empty" style="padding:8px;font-size:12px">No tags yet</div>';
+  $('tags').querySelectorAll('.proj').forEach(el=>el.addEventListener('click',()=>{
+    activeTag=el.dataset.t===activeTag?null:el.dataset.t;render();
+  }));
+}
+
+function itemHtml(e){
+  const isNew=!seenIds.has(e.id);seenIds.add(e.id);
+  const exp=expanded.has(e.id);
+  const isOpen=e.status==='open';
+  return `
+  <div class="item" data-id="${e.id}">
+    <div class="sum">
+      <b style="color:${isOpen?'var(--open)':'var(--text)'}">${esc(e.problem_title)}</b>
+      <span class="proj-tag tag">${esc(e.project||'—')}</span>
+      ${e.tags.split(',').filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
+      <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${esc(e.summary||'')}</div>
+      <div style="font-size:11px;color:var(--faint);margin-top:2px">${age(e.created_at)} · seen ${e.times_seen}× · helped ${e.times_helped}×</div>
+    </div>
+    <div class="btns">
+      <button class="ok" data-id="${e.id}" data-act="helped" title="Mark helpful">✓</button>
+      <button class="no" data-id="${e.id}" data-act="unhelped" title="Not helpful">✕</button>
+      <button class="merge" data-id="${e.id}" data-act="detail" title="Detail">⤢</button>
+    </div>
+  </div>`;
+}
+
+function renderItems(){
+  let items=STATE.entries||[];
+  if(filter!=='all')items=items.filter(e=>e.status===filter);
+  if(activeProject)items=items.filter(e=>e.project===activeProject);
+  if(activeTag)items=items.filter(e=>e.tags.split(',').some(t=>t.trim()===activeTag));
+  if(query){
+    const q=query.toLowerCase();
+    items=items.filter(e=>e.problem_title.toLowerCase().includes(q)||e.summary?.toLowerCase().includes(q));
+  }
+  const el=$('items');
+  el.innerHTML=items.length?items.map(itemHtml).join(''):`<div class="empty"><div class="big">No entries</div><div class="sub">${query?'Nothing matches '+esc(query):'Save your first fix with the box below.'}</div></div>`;
+  $('items').querySelectorAll('.btns button').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    act(+b.dataset.id,b.dataset.act);
+  }));
+}
+
+async function act(id,actionType){
+  if(actionType==='helped'||actionType==='unhelped'){
+    await api('/api/feedback/'+id+'/'+(actionType==='helped'?'up':'down'));
+    toast(actionType==='helped'?'Marked helpful':'Marked not helpful');
+    refresh();
+  }
+}
+
+function drawCharts(){
+  const data=STATE.last14||[];
+  const W=620,H=140,pad=24;
+  const max=Math.max(2,...data.map(d=>Math.max(d.searches,d.hits)));
+  const y=v=>H-20-(v/max)*(H-40);
+  let bars='',labels='';
+  data.forEach((d,i)=>{
+    const x=pad+(i*(W-pad*2))/Math.max(1,data.length);
+    const t=d.date.slice(5);
+    if(d.searches>0)bars+=`<rect x="${x}" y="${y(d.searches)}" width="7" height="${Math.max(2,H-20-y(d.searches))}" fill="rgba(230,180,80,.65)" rx="2"><title>${t}: ${d.searches} searches</title></rect>`;
+    if(d.hits>0)bars+=`<rect x="${x+8}" y="${y(d.hits)}" width="7" height="${Math.max(2,H-20-y(d.hits))}" fill="rgba(62,207,142,.8)" rx="2"><title>${t}: ${d.hits} hits</title></rect>`;
+    if(i%3===0)labels+=`<text x="${x}" y="${H-4}" fill="var(--faint)" font-size="9" text-anchor="middle">${t}</text>`;
+  });
+  $('chart-days').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${bars}${labels}</svg>`;
+  const c=STATE.counts;
+  const total=Math.max(1,c.solved+c.open);
+  const R=48,CIRC=2*Math.PI*R;
+  const solArc=(c.solved/total)*CIRC;
+  $('chart-status').innerHTML=`<svg viewBox="0 0 120 120" width="120">
+    <circle r="${R}" cx="60" cy="60" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="13"/>
+    <circle r="${R}" cx="60" cy="60" fill="none" stroke="var(--done)" stroke-width="13" stroke-linecap="round" stroke-dasharray="${solArc} ${CIRC-solArc}" transform="rotate(-90 60 60)"/>
+    <text x="60" y="65" fill="var(--text)" font-size="16" font-weight="700" text-anchor="middle">${c.total?Math.round(c.solved/c.total*100):0}%</text>
+    <text x="60" y="80" fill="var(--faint)" font-size="8" text-anchor="middle" letter-spacing="1">SOLVED</text></svg>`;
+}
+
+// wire inputs
+$('q').addEventListener('input',e=>{query=e.target.value.trim();renderItems()});
+$('chips').querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+  $('chips').querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');filter=c.dataset.f;render();
+}));
+$('add-btn').addEventListener('click',async()=>{
+  const v=$('add-input').value.trim();if(!v)return;
+  // split on '->' or '|': problem -> fix
+  const parts=v.split(/\s*(?:->|\||→)\s*/);
+  const title=parts[0]||v, fix=parts[1]||'';
+  await api('/api/save',{problem_title:title.slice(0,120),symptoms:title,solution:fix.slice(0,800),summary:(parts[0]+(parts[1]?' → '+parts[1]:'')).slice(0,300),status:'solved'});
+  $('add-input').value='';
+  toast('Saved');
+  refresh();
+});
+$('add-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('add-btn').click()});
+$('btn-save-config').addEventListener('click',async()=>{
+  await api('/api/config',{tokenCost:+$('token-cost').value});
+  toast('Saved');
+  refresh();
+});
+$('btn-prune').addEventListener('click',async()=>{
+  const r=await api('/api/prune',{});
+  toast(r.pruned+' pruned');
+  refresh();
+});
+$('btn-export').addEventListener('click',async()=>{
+  const rows=await api('/api/export');
+  const b=new Blob([JSON.stringify(rows,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='fixdex-export.json';a.click();
+});
+
+refresh();
+setInterval(refresh,5000);
+</script>
+</body>
+</html>

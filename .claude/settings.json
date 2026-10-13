@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "type": "command", "command": "node fixdex/dist/hooks/fixdex-startup.js" }
+    ],
+    "PostToolUse": [
+      { "type": "command", "command": "node fixdex/dist/hooks/fixdex-post.js", "matcher": "Bash" }
+    ],
+    "UserPromptSubmit": [
+      { "type": "command", "command": "node fixdex/dist/hooks/fixdex-pre.js" }
+    ],
+    "Stop": [
+      { "type": "command", "command": "node fixdex/dist/hooks/fixdex-stop.js" }
+    ]
+  },
+  "mcpServers": {
+    "fixdex": {
+      "command": "node",
+      "args": ["fixdex/dist/mcp.js"]
+    }
+  }
+}
