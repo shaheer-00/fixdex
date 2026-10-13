@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist",
+    "outDir": "dist-tests",
     "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
@@ -11,8 +11,9 @@
     "declaration": false,
     "resolveJsonModule": true
   },
-  "files": [
-    "tests/normalize.test.ts",
-    "tests/db.test.ts"
-  ]
+  "include": [
+    "tests/**/*.ts",
+    "src/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-tests", "hooks"]
 }

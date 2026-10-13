@@ -1,15 +1,9 @@
-# Build output
 dist/
-
-# Dependencies
+dist-tests/
 node_modules/
-
-# Local DB / runtime data (never commit)
 *.db
 *.db-shm
 *.db-wal
 .session-counters.json
-
-# OS
 .DS_Store
 Thumbs.db

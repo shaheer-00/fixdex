@@ -1,0 +1,57 @@
+{
+  "name": "fixdex",
+  "version": "0.2.1",
+  "description": "Claude Code's local error/fix memory — hooks, MCP, web UI. Records repeated errors and their fixes in SQLite, injecting the known fix before Claude re-debugs. Offline, deduped, secret-redacted, MIT.",
+  "category": "productivity",
+  "tags": ["claude-code", "mcp", "hooks", "error-handling", "debugging", "sqlite", "offline", "productivity"],
+  "main": "dist/index.js",
+  "bin": {
+    "fixdex": "dist/cli.js",
+    "fixdex-mcp": "dist/mcp.js",
+    "fixdex-ui": "dist/ui.js"
+  },
+  "hooks": {
+    "SessionStart": ["dist/hooks/fixdex-startup.js"],
+    "PostToolUse": [
+      { "command": "dist/hooks/fixdex-post.js", "matcher": "Bash" }
+    ],
+    "UserPromptSubmit": ["dist/hooks/fixdex-pre.js"],
+    "Stop": ["dist/hooks/fixdex-stop.js"]
+  },
+  "mcpServers": {
+    "fixdex": { "command": "node", "args": ["dist/mcp.js"] }
+  },
+  "permissions": {
+    "allow": ["Read", "Write"]
+  },
+  "files": [
+    "dist/",
+    "dist-tests/",
+    "web/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude-code-plugin",
+    "claude-code-mcp",
+    "claude-code-hooks",
+    "error-memory",
+    "fix-deduplication",
+    "sqlite-fts5",
+    "secret-redaction",
+    "offline",
+    "debugging",
+    "developer-productivity",
+    "mcp-server",
+    "posttooluse-hook",
+    "userspromitsubmit-hook",
+    "sessionstart-hook",
+    "stop-hook",
+    "local-ai-agent-memory",
+    "token-savings",
+    "claude-code-extension",
+    "cli-tool",
+    "web-dashboard"
+  ]
+}

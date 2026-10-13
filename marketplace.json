@@ -1,0 +1,24 @@
+{
+  "name": "Fixdex — local error/fix memory for Claude Code",
+  "slug": "fixdex",
+  "description": "Records every error you hit twice in SQLite. The next time a similar error appears, Fixdex injects the saved fix before Claude starts re-debugging — saving tokens and dev time. Hooks + MCP tools + localhost dashboard, all offline and secret-redacted.",
+  "author": "shaheer-00",
+  "license": "MIT",
+  "homepage": "https://github.com/shaheer-00/fixdex",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shaheer-00/fixdex.git"
+  },
+  "category": "productivity",
+  "tags": ["claude-code", "mcp", "hooks", "error-handling", "debugging", "sqlite", "offline", "productivity"],
+  "version": "0.2.1",
+  "pluginFile": "plugin.json",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "entryPoint": "dist/index.js",
+  "permissions": {
+    "allow": ["Read", "Write"]
+  },
+  "screenshots": [],
+  "video": ""
+}

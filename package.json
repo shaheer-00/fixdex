@@ -1,6 +1,6 @@
 {
   "name": "fixdex",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Claude Code's local error/fix memory — hooks + skill + MCP + web UI",
   "bin": {
     "fixdex": "dist/cli.js",
@@ -8,15 +8,19 @@
     "fixdex-ui": "dist/ui.js"
   },
   "main": "dist/index.js",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./version": "./dist/version.js"
+  },
   "type": "module",
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.test.json",
+    "build": "tsc && tsc -p tsconfig.test.json && node scripts/check-version.cjs",
+    "prepack": "npm run build",
     "start": "node dist/cli.js",
     "mcp": "node dist/mcp.js",
     "ui": "node dist/ui.js",
-    "test": "node --test dist/tests/*.test.js",
-    "seed": "node dist/seed.js",
-    "prepublishOnly": "npm run build"
+    "test": "node --test dist-tests/tests/*.test.js",
+    "seed": "node dist/seed.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
