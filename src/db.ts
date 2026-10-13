@@ -221,17 +221,26 @@ export class FixdexDB {
     ).all() as Entry[];
   }
 
-  /** Look up an entry by matching the error's normalized signature. */
+  /** Look up an entry by matching the error's normalized signature.
+   *
+   * Redact first — save() hashes redact(symptoms), so lookups must hash the
+   * same redacted text or the signature never matches. (Bug: raw text was
+   * hashed here while save() hashed the redacted form, so signatures diverged
+   * whenever the error text contained a redactable secret.)
+   */
   findBySignature(text: string): Entry | null {
-    const sig = this.getSignature(text);
+    const sig = this.getSignature(this.redact(text));
     return this.db
       .prepare('SELECT * FROM entries WHERE signature = ? LIMIT 1')
       .get(sig) as Entry | null;
   }
 
-  /** Look up a SOLVED entry by signature — used for fix pre-injection. */
+  /** Look up a SOLVED entry by signature — used for fix pre-injection.
+   *
+   * Redact first, matching save() — see findBySignature note.
+   */
   findSolvedBySignature(text: string): Entry | null {
-    const sig = this.getSignature(text);
+    const sig = this.getSignature(this.redact(text));
     return this.db
       .prepare('SELECT * FROM entries WHERE signature = ? AND status = \'solved\' LIMIT 1')
       .get(sig) as Entry | null;

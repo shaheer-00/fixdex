@@ -133,3 +133,25 @@ test('prune keeps solved entries with one failure (no auto-downvote deletion)', 
   const stillThere = db.get(e.id);
   assert.ok(stillThere, 'entry with one failure must survive prune');
 });
+
+test('findSolvedBySignature redacts input like save() does', () => {
+  // Bug: save() hashed redact(symptoms); lookups hashed raw text.
+  // An error containing a redactable token must still match.
+  const symptoms = 'EADDRINUSE: TOKEN=abcdefghijklmnopqrstuvwxyz0123456789abcdefGHIJKL';
+  db.save({
+    problem_title: 'Port conflict', symptoms, summary: 'kill the process',
+    root_cause: 'rc', solution: 'sol', status: 'solved',
+  });
+  // Lookup with the RAW (un-redacted) text — should still resolve because
+  // findSolvedBySignature now redacts before hashing, matching save().
+  const hit = db.findSolvedBySignature(symptoms);
+  assert.ok(hit, 'lookup with raw secret text must match saved entry');
+  assert.equal(hit!.summary, 'kill the process');
+});
+
+test('findBySignature also redacts', () => {
+  const s = 'Error: bad thing TOKEN=abcdefghijklmnopqrstuvwxyz0123456789abcdefGHIJKL';
+  db.save({ problem_title: 'BySig', symptoms: s, summary: 'bysig fix' });
+  const hit = db.findBySignature(s);
+  assert.ok(hit, 'findBySignature must resolve raw-text lookup via redaction');
+});
