@@ -52,16 +52,16 @@ export function readHookInput<T = Record<string, unknown>>(): T {
  * emitSystemMessage there.)
  */
 export function emitContext(event: string, text: string): void {
-  process.stdout.write(
-    JSON.stringify({
-      hookSpecificOutput: { hookEventName: event, additionalContext: text },
-    }) + '\n'
-  );
+  // writeFileSync(1) is synchronous — flushes to stdout before process.exit(0)
+  // in safeHook, which would otherwise truncate async process.stdout.write.
+  writeFileSync(1, JSON.stringify({
+    hookSpecificOutput: { hookEventName: event, additionalContext: text },
+  }) + '\n');
 }
 
 /** Stop emits to the transcript via systemMessage — no additionalContext channel. */
 export function emitSystemMessage(text: string): void {
-  process.stdout.write(JSON.stringify({ systemMessage: text }) + '\n');
+  writeFileSync(1, JSON.stringify({ systemMessage: text }) + '\n');
 }
 
 /**
