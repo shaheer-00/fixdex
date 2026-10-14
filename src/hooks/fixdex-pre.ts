@@ -60,12 +60,22 @@ safeHook(() => {
       }
 
       if (problem && solution && problem.length >= 5 && solution.length >= 5) {
+        // Clean the title: strip leading correction keywords so the title
+        // names the issue, not the instruction ("fix the CORS error" → "CORS error").
+        const cleanTitle = problem
+          .replace(/^(?:please\s+)?(?:fix|correct|repair|solve)\s+(?:the\s+|this\s+|that\s+)?/i, '')
+          .replace(/^(?:the\s+|this\s+|that\s+)/i, '')
+          .trim() || problem;
+
+        // Human-readable description: situation + what went wrong + the move.
+        const situation = buildDescription(cleanTitle, solution, prompt);
+
         db.save({
-          problem_title: problem.slice(0, 120),
+          problem_title: cleanTitle.slice(0, 120),
           symptoms: problem,
           solution: solution.slice(0, 800),
-          summary: `${problem} → ${solution}`.slice(0, 300),
-          description: prompt.slice(0, 500),
+          summary: `${cleanTitle} → ${solution}`.slice(0, 300),
+          description: situation.slice(0, 1000),
           status: 'solved',
           tags: 'auto-captured',
         });
@@ -90,3 +100,34 @@ safeHook(() => {
     db.close();
   }
 });
+
+/**
+ * Turn a raw correction prompt into a situation-aware, human-readable
+ * description. Raw prompts read like commands ("fix the asset URL -> use
+ * s3://prod"); descriptions should read like a memory note anyone can
+ * revisit: the situation, what went wrong, what the right move is.
+ */
+function buildDescription(problem: string, solution: string, rawPrompt: string): string {
+  const lines: string[] = [];
+
+  // Situation: when/where this problem surfaced.
+  const now = new Date();
+  const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  lines.push(`Situation: while working on ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}, this issue came up — ${problem}.`);
+
+  // What went wrong: the raw prompt often carries extra context the parsed
+  // problem/solution fields lose (tone, specifics, the user's phrasing).
+  // Include it as "original note" so nothing is lost.
+  const note = rawPrompt.trim().replace(/\s+/g, ' ');
+  if (note.length > 0 && note.toLowerCase() !== problem.toLowerCase()) {
+    lines.push(`Original note: "${note}"`);
+  }
+
+  // What to do instead — the fix, restated as guidance.
+  const fix = solution.trim().replace(/\s+/g, ' ');
+  if (fix) {
+    lines.push(`What to do instead: ${fix.charAt(0).toUpperCase() + fix.slice(1)}.`);
+  }
+
+  return lines.join('\n');
+}
