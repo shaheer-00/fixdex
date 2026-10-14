@@ -52,6 +52,11 @@ export class FixdexDB {
   private init() {
     this.db.exec(CREATE_ENTRIES_SQL);
     this.db.exec(SCHEMA_SQL);
+    // Migration: add 'attempts' column to pre-existing databases (v0.3+)
+    const cols = this.db.prepare('PRAGMA table_info(entries)').all() as { name: string }[];
+    if (!cols.some((c) => c.name === 'attempts')) {
+      this.db.exec('ALTER TABLE entries ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0');
+    }
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_signature ON entries(signature)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_entries_project ON entries(project)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_entries_status ON entries(status)');
