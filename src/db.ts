@@ -27,6 +27,7 @@ export interface Entry {
   times_helped: number;
   times_failed: number;
   attempts: number;
+  description?: string | null;
   last_used_at?: string | null;
 }
 
@@ -52,10 +53,13 @@ export class FixdexDB {
   private init() {
     this.db.exec(CREATE_ENTRIES_SQL);
     this.db.exec(SCHEMA_SQL);
-    // Migration: add 'attempts' column to pre-existing databases (v0.3+)
+    // Migration: add 'attempts' and 'description' columns to pre-existing databases
     const cols = this.db.prepare('PRAGMA table_info(entries)').all() as { name: string }[];
     if (!cols.some((c) => c.name === 'attempts')) {
       this.db.exec('ALTER TABLE entries ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!cols.some((c) => c.name === 'description')) {
+      this.db.exec('ALTER TABLE entries ADD COLUMN description TEXT');
     }
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_signature ON entries(signature)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_entries_project ON entries(project)');
@@ -264,13 +268,15 @@ export class FixdexDB {
     project?: string | null;
     status?: 'open' | 'solved';
     attempts?: number;
+    description?: string | null;
   }): Entry {
-    const { problem_title, symptoms, root_cause, solution, summary, tags = '', attempts = 0 } = params;
+    const { problem_title, symptoms, root_cause, solution, summary, tags = '', attempts = 0, description } = params;
     const project = params.project || process.env.FIXDEX_PROJECT || '';
     const status: 'open' | 'solved' = params.status || 'open';
     const redactedSymptoms = this.redact(symptoms);
     const redactedSolution = solution ? this.redact(solution) : null;
     const redactedCause = root_cause ? this.redact(root_cause) : null;
+    const redactedDesc = description ? this.redact(description) : null;
     const sig = this.getSignature(redactedSymptoms);
 
     // Dedupe: same signature or similar title
@@ -298,9 +304,11 @@ export class FixdexDB {
         UPDATE entries SET
           updated_at = datetime('now'),
           project = ?, tags = ?, root_cause = ?, solution = ?,
-          times_seen = ?, attempts = ?, status = ?, last_used_at = datetime('now')
+          times_seen = ?, attempts = ?, status = ?,
+          description = COALESCE(?, description),
+          last_used_at = datetime('now')
         WHERE id = ?
-      `).run(newProject, newTags, newCause, newSol, newSeen, newAttempts, status, existing.id);
+      `).run(newProject, newTags, newCause, newSol, newSeen, newAttempts, status, redactedDesc, existing.id);
       this.log('save', existing.id, 'merged');
       return this.get(existing.id)!;
     }
@@ -308,8 +316,8 @@ export class FixdexDB {
     const now = new Date().toISOString();
     const stmt = this.db.prepare(`
       INSERT INTO entries (created_at, updated_at, project, tags, signature,
-        problem_title, symptoms, root_cause, solution, summary, status, attempts)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        problem_title, symptoms, root_cause, solution, summary, status, attempts, description)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       now,
@@ -323,7 +331,8 @@ export class FixdexDB {
       redactedSolution ? redactedSolution.slice(0, SOLUTION_MAX) : null,
       summary.slice(0, 300),
       status,
-      attempts || 0
+      attempts || 0,
+      redactedDesc ? redactedDesc.slice(0, 2000) : null
     ) as { lastInsertRowid: number } | unknown;
     const newId = typeof info === 'object' && info !== null
       ? Number((info as { lastInsertRowid: number }).lastInsertRowid)
@@ -522,12 +531,13 @@ export class FixdexDB {
           tags = ?,
           solution = COALESCE(NULLIF(?, ''), solution),
           root_cause = COALESCE(NULLIF(?, ''), root_cause),
+          description = COALESCE(?, description),
           status = 'solved', updated_at = datetime('now')
         WHERE id = ?
       `).run(
         b.times_seen + a.times_seen, b.times_helped + a.times_helped, b.times_failed + a.times_failed,
         (b.attempts || 0) + (a.attempts || 0),
-        [...tagSet].join(','), a.solution || '', a.root_cause || '', to
+        [...tagSet].join(','), a.solution || '', a.root_cause || '', a.description || '', to
       );
       this.db.prepare('DELETE FROM entries WHERE id = ?').run(from);
     });
@@ -543,7 +553,7 @@ export class FixdexDB {
   }
 
   update(id: number, fields: Record<string, unknown>): boolean {
-    const allowed = ['problem_title','symptoms','root_cause','solution','summary','tags','status','project','attempts'];
+    const allowed = ['problem_title','symptoms','root_cause','solution','summary','tags','status','project','attempts','description'];
     const sets: string[] = []; const vals: unknown[] = [];
     for (const k of allowed) {
       let v: unknown;

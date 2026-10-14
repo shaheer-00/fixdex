@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS entries (
   times_helped    INTEGER NOT NULL DEFAULT 0,
   times_failed    INTEGER NOT NULL DEFAULT 0,
   attempts        INTEGER NOT NULL DEFAULT 0,
+  description     TEXT,
   last_used_at    TEXT,
   UNIQUE(signature)
 )

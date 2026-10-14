@@ -276,6 +276,7 @@ function itemHtml(e){
       ${e.tags.split(',').filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
       <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${esc(e.summary||'')}</div>
       <div style="font-size:11px;color:var(--faint);margin-top:2px">
+        ${e.project ? `<span class="mono">${esc(e.project)}</span> · ` : ''}
         ${age(e.created_at)} · seen ${e.times_seen}× · helped ${e.times_helped}×
         ${badges.length?' · '+badges.join(' '):''}
       </div>
@@ -290,11 +291,12 @@ function itemHtml(e){
 }
 
 function detailHtml(e){
-  const hasContent=e.symptoms||e.root_cause||e.solution;
+  const hasContent=e.description||e.symptoms||e.root_cause||e.solution;
   if(!hasContent)return '';
   return `
   <div class="detail">
     <div class="detail-inner">
+      ${e.description ? `<div class="meta-row"><b>What happened</b><div style="color:var(--text);margin-top:4px">${esc(e.description)}</div></div>` : ''}
       ${e.root_cause ? `<div class="meta-row"><b>Root cause</b><pre>${esc(e.root_cause)}</pre></div>` : ''}
       ${e.solution ? `<div class="meta-row"><b>Solution</b><pre>${esc(e.solution)}</pre></div>` : ''}
       ${e.symptoms ? `<div class="meta-row"><b>Symptoms</b><pre>${esc(e.symptoms)}</pre></div>` : ''}
@@ -309,7 +311,7 @@ function renderItems(){
   if(activeTag)items=items.filter(e=>e.tags.split(',').some(t=>t.trim()===activeTag));
   if(query){
     const q=query.toLowerCase();
-    items=items.filter(e=>e.problem_title.toLowerCase().includes(q)||e.summary?.toLowerCase().includes(q));
+    items=items.filter(e=>e.problem_title.toLowerCase().includes(q)||e.summary?.toLowerCase().includes(q)||e.description?.toLowerCase().includes(q)||e.project?.toLowerCase().includes(q));
   }
   const el=$('items');
   el.innerHTML=items.length?items.map(itemHtml).join(''):`<div class="empty"><div class="big">No entries</div><div class="sub">${query?'Nothing matches '+esc(query):'Save your first fix with the box below.'}</div></div>`;
