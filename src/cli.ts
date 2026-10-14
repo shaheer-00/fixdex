@@ -36,16 +36,35 @@ async function main() {
       console.log(JSON.stringify(db.get(Number(args[1])), null, 2));
       break;
     case 'save': {
+      const flags: Record<string, string> = {};
+      let positional: string[] = [];
+      for (let i = 1; i < args.length; i++) {
+        const a = args[i];
+        if (a.startsWith('--')) {
+          const next = args[i + 1];
+          if (next && !next.startsWith('--')) {
+            flags[a.slice(2)] = next;
+            i++;
+          }
+        } else {
+          positional.push(a);
+        }
+      }
+      const text = positional.join(' ');
+      const parts = text.split(/\s*(?:->|\||→)\s*/);
+      const title = parts[0] || text;
+      const fix = parts[1] || '';
       const e = db.save({
-        problem_title: args[1] || '',
-        symptoms: args[2] || '',
-        root_cause: args[3],
-        solution: args[4],
-        summary: args[5] || '',
-        tags: args[6],
-        project: args[7],
+        problem_title: title.slice(0, 120),
+        symptoms: title,
+        root_cause: flags['root-cause'],
+        solution: fix.slice(0, 800),
+        summary: (title + (fix ? ' → ' + fix : '')).slice(0, 300),
+        description: flags['description'],
+        tags: flags['tags'],
+        project: flags['project'],
       });
-      console.log(`Saved #${e.id}`);
+      console.log(`Saved #${e.id}: ${e.problem_title}`);
       break;
     }
     case 'stats':
@@ -73,14 +92,15 @@ async function main() {
       }
       // Top 3 by impact (helped - failed), solved, most recent first
       const rows = db.raw(`
-        SELECT id, problem_title, summary, solution, root_cause, times_seen, times_helped
+        SELECT id, problem_title, summary, solution, root_cause, description, attempts, times_seen, times_helped
         FROM entries
         WHERE status = 'solved' AND summary IS NOT NULL
-        ORDER BY (times_helped - times_failed) DESC, last_used_at DESC
+        ORDER BY (times_helped - times_failed) DESC, times_seen DESC, last_used_at DESC
         LIMIT ?
       `).all(n) as Array<{
         id: number; problem_title: string; summary: string;
         solution?: string | null; root_cause?: string | null;
+        description?: string | null; attempts: number;
         times_seen: number; times_helped: number;
       }>;
       console.log('');
@@ -91,16 +111,20 @@ async function main() {
           : ['none yet'],
       );
       for (const r of rows) {
-        console.log(`\n${C.bold}#{${r.id}} ${redactSecrets(r.problem_title)}${C.reset}`);
-        if (r.summary) console.log(`  ${C.green}→ ${C.reset}${C.bold}${r.summary}${C.reset}`);
-        if (r.solution) console.log(`  ${C.dim}sol:${C.reset} ${redactSecrets(String(r.solution))}`);
+        const badge = r.attempts > 0 ? ` ${C.yellow}(${r.attempts}x)${C.reset}` : '';
+        const seen = r.times_seen > 1 ? ` ${C.yellow}↻${r.times_seen}${C.reset}` : '';
+        console.log(`\n${C.bold}#{${r.id}} ${redactSecrets(r.problem_title)}${badge}${seen}${C.reset}`);
+        if (r.description) console.log(`  ${C.green}→ ${C.reset}${redactSecrets(r.description)}`);
+        else if (r.summary) console.log(`  ${C.green}→ ${C.reset}${C.bold}${redactSecrets(r.summary)}${C.reset}`);
         if (r.root_cause) console.log(`  ${C.dim}rc:${C.reset}  ${redactSecrets(String(r.root_cause))}`);
+        if (r.solution) console.log(`  ${C.dim}fix:${C.reset} ${redactSecrets(String(r.solution))}`);
       }
-      console.log(`\n${C.dim}fixdex: ${c.solved} solved · ${c.open} open · run \`fixdex recent <n>\` for more${C.reset}\n`);
+      console.log(`\n${C.dim}fixdex: ${c.solved} solved · ${c.open} open · ${c.total} total · run \`fixdex recent <n>\` for more${C.reset}\n`);
       break;
     }
     default:
       console.log('Usage: fixdex <search|get|save|stats|open|prune|seed|recent> [args]');
+      console.log('       fixdex save "problem -> solution" [--description "..." --tags "..." --project "..."]');
   }
   db.close();
 }
