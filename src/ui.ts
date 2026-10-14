@@ -104,6 +104,12 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { id: e.id });
     }
 
+    if (method === 'POST' && path === '/api/attempt') {
+      const b = await readBody(req);
+      db.recordAttempt(Number(b.id));
+      return sendJson(res, 200, { ok: true });
+    }
+
     if (method === 'POST' && path === '/api/import') {
       const b = await readBody(req);
       const rows = Array.isArray(b.entries) ? b.entries : [];

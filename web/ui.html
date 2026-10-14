@@ -59,12 +59,15 @@ header h1{font-size:17px;font-weight:650;color:var(--accent);letter-spacing:-.01
 .btns button.ok:hover{border-color:var(--done);color:var(--done);background:var(--done-soft)}
 .btns button.no:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
 .btns button.merge:hover{border-color:var(--accent);color:#a8c0ff;background:var(--accent-soft)}
-.detail{border-radius:9px;margin:0 12px 4px;overflow:hidden;transition:height .35s var(--ease)}
+.detail{border-radius:9px;margin:0 12px 4px;overflow:hidden;animation:fadeUp .25s var(--ease) forwards}
 .detail-inner{padding:12px 14px;border:1px solid rgba(255,255,255,.05);border-radius:9px;background:rgba(3,5,10,.42)}
 .detail pre{background:#0a0d14;border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;font-size:.82em;white-space:pre-wrap}
 .meta-row{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:8px}
 .meta-row b{color:var(--faint);font-weight:600;text-transform:uppercase;font-size:10px;margin-right:4px}
 .mono{font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;font-size:11px;color:var(--faint)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.badge.attempt{background:rgba(91,140,255,.13);color:#5b8cff;border:1px solid rgba(91,140,255,.4)}
+.badge.repeat{background:rgba(230,180,80,.13);color:var(--open);border:1px solid rgba(230,180,80,.4)}
 .empty{color:var(--muted);padding:20px;text-align:center}
 .empty .big{font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px}
 .empty .sub{font-size:12px;color:var(--faint)}
@@ -261,6 +264,10 @@ function itemHtml(e){
   const isNew=!seenIds.has(e.id);seenIds.add(e.id);
   const exp=expanded.has(e.id);
   const isOpen=e.status==='open';
+  const badges=[];
+  if(e.attempts>0)badges.push(`<span class="badge attempt">✓ ${e.attempts} attempt${e.attempts>1?'s':''}</span>`);
+  if(e.times_seen>1)badges.push(`<span class="badge repeat">repeated</span>`);
+  if(e.times_failed>0)badges.push(`<span class="badge repeat">failed ${e.times_failed}×</span>`);
   return `
   <div class="item" data-id="${e.id}">
     <div class="sum">
@@ -268,12 +275,29 @@ function itemHtml(e){
       <span class="proj-tag tag">${esc(e.project||'—')}</span>
       ${e.tags.split(',').filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
       <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${esc(e.summary||'')}</div>
-      <div style="font-size:11px;color:var(--faint);margin-top:2px">${age(e.created_at)} · seen ${e.times_seen}× · helped ${e.times_helped}×</div>
+      <div style="font-size:11px;color:var(--faint);margin-top:2px">
+        ${age(e.created_at)} · seen ${e.times_seen}× · helped ${e.times_helped}×
+        ${badges.length?' · '+badges.join(' '):''}
+      </div>
     </div>
     <div class="btns">
       <button class="ok" data-id="${e.id}" data-act="helped" title="Mark helpful">✓</button>
       <button class="no" data-id="${e.id}" data-act="unhelped" title="Not helpful">✕</button>
       <button class="merge" data-id="${e.id}" data-act="detail" title="Detail">⤢</button>
+    </div>
+  </div>
+  ${exp ? detailHtml(e) : ''}`;
+}
+
+function detailHtml(e){
+  const hasContent=e.symptoms||e.root_cause||e.solution;
+  if(!hasContent)return '';
+  return `
+  <div class="detail">
+    <div class="detail-inner">
+      ${e.root_cause ? `<div class="meta-row"><b>Root cause</b><pre>${esc(e.root_cause)}</pre></div>` : ''}
+      ${e.solution ? `<div class="meta-row"><b>Solution</b><pre>${esc(e.solution)}</pre></div>` : ''}
+      ${e.symptoms ? `<div class="meta-row"><b>Symptoms</b><pre>${esc(e.symptoms)}</pre></div>` : ''}
     </div>
   </div>`;
 }
@@ -289,6 +313,15 @@ function renderItems(){
   }
   const el=$('items');
   el.innerHTML=items.length?items.map(itemHtml).join(''):`<div class="empty"><div class="big">No entries</div><div class="sub">${query?'Nothing matches '+esc(query):'Save your first fix with the box below.'}</div></div>`;
+  $('items').querySelectorAll('.item').forEach(it=>{
+    it.addEventListener('click',e=>{
+      // Don't expand when clicking a button
+      if(e.target.closest('button'))return;
+      const id=+it.dataset.id;
+      expanded.has(id)?expanded.delete(id):expanded.add(id);
+      renderItems();
+    });
+  });
   $('items').querySelectorAll('.btns button').forEach(b=>b.addEventListener('click',e=>{
     e.stopPropagation();
     act(+b.dataset.id,b.dataset.act);
@@ -296,6 +329,11 @@ function renderItems(){
 }
 
 async function act(id,actionType){
+  if(actionType==='detail'){
+    expanded.has(id)?expanded.delete(id):expanded.add(id);
+    refresh();
+    return;
+  }
   if(actionType==='helped'||actionType==='unhelped'){
     await api('/api/feedback/'+id+'/'+(actionType==='helped'?'up':'down'));
     toast(actionType==='helped'?'Marked helpful':'Marked not helpful');
