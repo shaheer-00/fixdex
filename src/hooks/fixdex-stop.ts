@@ -5,6 +5,15 @@
 // Stop has no additionalContext channel — emit via systemMessage.
 import { FixdexDB } from '../db.js';
 import { readHookInput, safeHook, clearCounters, emitSystemMessage } from './io.js';
+import { renderLine, renderCard } from './renderer.js';
+
+function safeRender(fn: () => string): string {
+  try {
+    return fn();
+  } catch {
+    return '[fixdex] render failed';
+  }
+}
 
 safeHook(() => {
   const input = readHookInput<{ transcript?: string }>();
@@ -12,12 +21,19 @@ safeHook(() => {
   try {
     const open = db.openProblems();
     const transcript = input.transcript ?? '';
-    const nudged: number[] = [];
 
+    // Session summary compact line (Stop -> systemMessage; no context channel)
+    emitSystemMessage(
+      safeRender(() => renderLine({
+        kind: 'info',
+        text: 'session summary: ' + open.length + ' open problem(s) tracked',
+      }))
+    );
+
+    // Nudge for open problems whose title appears in the transcript.
+    // Conservative: never auto-closes anything, only nudges.
+    const nudged: number[] = [];
     for (const e of open) {
-      // Loose heuristic: the entry title appears in a recent part of the
-      // transcript, suggesting the issue was touched. Conservative — never
-      // auto-closes anything, only nudges.
       if (e.problem_title && transcript.includes(e.problem_title.slice(0, 30))) {
         nudged.push(e.id);
       }
@@ -25,7 +41,14 @@ safeHook(() => {
 
     if (nudged.length) {
       emitSystemMessage(
-        `fixdex: ${nudged.length} open problem(s) may be resolved this session — run \`fixdex save\` to record the fix.`
+        safeRender(() => renderCard({
+          kind: 'warning',
+          title: 'Open problems may be resolved',
+          detail: nudged.length + ' open problem(s) touched this session - run fixdex save to record the fix',
+          meta: 'review ' + nudged.length,
+          actions: 'review ' + nudged.length,
+          width: 'fit' as const,
+        }))
       );
     }
   } finally {

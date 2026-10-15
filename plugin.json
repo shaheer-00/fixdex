@@ -1,9 +1,18 @@
 {
   "name": "fixdex",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Claude Code's local error/fix memory — hooks, MCP, web UI. Records repeated errors and their fixes in SQLite, injecting the known fix before Claude re-debugs. Offline, deduped, secret-redacted, MIT.",
   "category": "productivity",
-  "tags": ["claude-code", "mcp", "hooks", "error-handling", "debugging", "sqlite", "offline", "productivity"],
+  "tags": [
+    "claude-code",
+    "mcp",
+    "hooks",
+    "error-handling",
+    "debugging",
+    "sqlite",
+    "offline",
+    "productivity"
+  ],
   "main": "dist/index.js",
   "bin": {
     "fixdex": "dist/cli.js",
@@ -11,24 +20,42 @@
     "fixdex-ui": "dist/ui.js"
   },
   "hooks": {
-    "SessionStart": ["dist/hooks/fixdex-startup.js"],
-    "PostToolUse": [
-      { "command": "dist/hooks/fixdex-post.js", "matcher": "Bash" }
+    "SessionStart": [
+      "dist/hooks/fixdex-startup.js"
     ],
-    "UserPromptSubmit": ["dist/hooks/fixdex-pre.js"],
-    "Stop": ["dist/hooks/fixdex-stop.js"]
+    "PostToolUse": [
+      {
+        "command": "dist/hooks/fixdex-post.js",
+        "matcher": "Bash"
+      }
+    ],
+    "UserPromptSubmit": [
+      "dist/hooks/fixdex-pre.js"
+    ],
+    "Stop": [
+      "dist/hooks/fixdex-stop.js"
+    ]
   },
   "mcpServers": {
-    "fixdex": { "command": "node", "args": ["dist/mcp.js"] }
+    "fixdex": {
+      "command": "node",
+      "args": [
+        "dist/mcp.js"
+      ]
+    }
   },
   "permissions": {
-    "allow": ["Read", "Write"]
+    "allow": [
+      "Read",
+      "Write"
+    ]
   },
   "files": [
     "dist/",
     "dist-tests/",
     "web/",
     "skills/",
+    "commands/",
     "README.md",
     "LICENSE"
   ],

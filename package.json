@@ -1,6 +1,6 @@
 {
   "name": "fixdex",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Claude Code's local error/fix memory — hooks + skill + MCP + web UI",
   "bin": {
     "fixdex": "dist/cli.js",
@@ -9,7 +9,10 @@
   },
   "main": "dist/index.js",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./version": "./dist/version.js"
   },
   "type": "module",

@@ -1,6 +1,8 @@
 // CLI entry: fixdex <cmd> [args]
 import { FixdexDB } from './db.js';
 import { redactSecrets } from './normalize.js';
+import { renderCard, renderLine, renderModeReport, setVerbosity, getVerbosity } from './hooks/renderer.js';
+import type { CardKind } from './hooks/renderer.js';
 
 const args = process.argv.slice(2);
 const db = new FixdexDB(process.env.FIXDEX_DB);
@@ -122,9 +124,83 @@ async function main() {
       console.log(`\n${C.dim}fixdex: ${c.solved} solved · ${c.open} open · ${c.total} total · run \`fixdex recent <n>\` for more${C.reset}\n`);
       break;
     }
+    case 'verbosity': {
+      // fixdex verbosity [quiet|normal|verbose] — read or set notice level.
+      const v = args[1];
+      if (v === 'quiet' || v === 'normal' || v === 'verbose') {
+        setVerbosity(v);
+        console.log(`fixdex verbosity: ${v}`);
+      } else {
+        console.log(`fixdex verbosity: ${getVerbosity()} (options: quiet | normal | verbose)`);
+      }
+      break;
+    }
+    case 'notices': {
+      // fixdex notices [width] — render sample output for every notice kind,
+      // in both color and NO_COLOR mode. Width defaults to 80.
+      const width = Number(args[1]) || 80;
+      const caps = Math.max(52, Math.min(140, width));
+      console.log(`Active mode: ${renderModeReport()}`);
+      console.log('');
+      const samples: Array<{ kind: CardKind; title: string; detail: string; meta: string; actions: string }> = [
+        {
+          kind: 'captured',
+          title: 'SSH password auth refused on shared hosting',
+          detail: 'Fix: switched to key auth on port 22999',
+          meta: 'seen 1× · this-project · 2 secrets masked',
+          actions: '1 review · 2 save · 0 dismiss',
+        },
+        {
+          kind: 'match',
+          title: 'Same error as 3 days ago: SSH auth refused',
+          detail: 'Applying saved fix instead of re-debugging',
+          meta: 'used 4× · saved Oct 12 · 96% match',
+          actions: '1 view fix · 0 dismiss',
+        },
+        {
+          kind: 'saved',
+          title: 'SSH password auth refused on shared hosting',
+          detail: 'Recorded: key auth on port 22999 works',
+          meta: 'saved just now · this-project',
+          actions: '1 review · 0 dismiss',
+        },
+        {
+          kind: 'warning',
+          title: 'Secrets masked before saving',
+          detail: '2 tokens redacted from the entry body',
+          meta: 'this-project',
+          actions: '0 dismiss',
+        },
+        {
+          kind: 'error',
+          title: 'Hook failed: fixdex-post',
+          detail: 'Could not open the database file',
+          meta: 'exit 0 kept · never fails silently again',
+          actions: '1 review',
+        },
+      ];
+      for (const s of samples) {
+        console.log(renderCard({ ...s, width: caps }));
+        console.log('');
+      }
+      console.log(renderLine({ kind: 'info', text: 'checked 142 solutions · no match' }));
+      console.log(renderLine({ kind: 'info', text: 'ready · 142 solutions loaded' }));
+      console.log('');
+      console.log('--- NO_COLOR mode ---');
+      process.env.NO_COLOR = '1';
+      process.stdout.isTTY = false;
+      for (const s of samples) {
+        console.log(renderCard({ ...s, width: caps }));
+        console.log('');
+      }
+      console.log(renderLine({ kind: 'info', text: 'checked 142 solutions · no match (plain)' }));
+      break;
+    }
     default:
-      console.log('Usage: fixdex <search|get|save|stats|open|prune|seed|recent> [args]');
+      console.log('Usage: fixdex <search|get|save|stats|open|prune|seed|recent|verbosity|notices> [args]');
       console.log('       fixdex save "problem -> solution" [--description "..." --tags "..." --project "..."]');
+      console.log('       fixdex verbosity [quiet|normal|verbose]');
+      console.log('       fixdex notices [width]');
   }
   db.close();
 }

@@ -5,10 +5,11 @@
 //   { tool_name, tool_output, tool_error?, exit_code?, is_error? }
 //
 // Rules enforced here:
-//   — Must never throw (wraps in safeHook).
-//   — Must not downvote an entry just because it hasn't been used recently;
+//   - Must never throw (wraps in safeHook).
+//   - Must not downvote an entry just because it has not been used recently;
 //     that was the data-loss vector in v0.2 (downvotes feed prune()).
-//   — Exact-match first (signature), so we only nudge on 2nd occurrence.
+//   - Exact-match first (signature), so we only nudge on 2nd occurrence.
+//   - All output rendered through the unified renderer.
 import { FixdexDB } from '../db.js';
 import {
   readHookInput,
@@ -17,6 +18,7 @@ import {
   saveCounters,
   emitSystemMessage,
 } from './io.js';
+import { renderCard, renderLine } from './renderer.js';
 
 interface PostInput {
   tool_name?: string;
@@ -28,13 +30,11 @@ interface PostInput {
   is_error?: boolean;
 }
 
-// Anchor patterns that indicate the tool invocation failed.
 const ERROR_RE = /\b(fail|error|refus|denied|abort|exited with non-zero|non-zero exit)\b/i;
 const SUCCESS_RE = /\b(completed|success|done)\b/i;
 
 function failureText(input: PostInput): string {
-  const out = JSON.stringify(input.output ?? input.tool_output ?? input.tool_error ?? input.error ?? '');
-  return out;
+  return JSON.stringify(input.output ?? input.tool_output ?? input.tool_error ?? input.error ?? '');
 }
 
 function didFail(input: PostInput): boolean {
@@ -44,12 +44,19 @@ function didFail(input: PostInput): boolean {
   return ERROR_RE.test(text) && !SUCCESS_RE.test(text);
 }
 
+/** Wrap rendering in try/catch — hooks must never break. */
+function safeRender(fn: () => string): string {
+  try {
+    return fn();
+  } catch {
+    return '[Fixdex] render failed';
+  }
+}
+
 safeHook(() => {
   const input = readHookInput<PostInput>();
   if (!didFail(input)) return;
 
-  // Only the Bash tool is wired up (settings.json matcher="Bash"). Still, guard
-  // so a stray payload never breaks the session.
   const counters = loadCounters();
   const counter = new FixdexDB(process.env.FIXDEX_DB);
   try {
@@ -60,19 +67,37 @@ safeHook(() => {
 
     if (counters[sig] >= 2) {
       const hit = counter.findBySignature(text);
+
       if (hit) {
         if (hit.status === 'open') {
           emitSystemMessage(
-            `[Fixdex] Known repeated issue — entry #${hit.id}. Review the saved context before re-debugging.`
+            safeRender(() => renderCard({
+              kind: 'captured',
+              title: hit.problem_title,
+              detail: hit.solution ?? 'No solution recorded yet.',
+              meta: 'seen ' + hit.times_seen + '×' + ' · ' + (hit.project || 'unknown') + ' · entry #' + hit.id,
+              actions: '1 review · 1 save · 0 dismiss',
+              width: 'fit' as const,
+            }))
           );
         } else {
           emitSystemMessage(
-            `[Fixdex] Fix exists (#${hit.id}) — see the saved summary before re-solving.`
+            safeRender(() => renderCard({
+              kind: 'match',
+              title: hit.summary ?? hit.problem_title,
+              detail: hit.solution ?? '',
+              meta: 'used ' + hit.times_seen + '×' + ' · saved entry #' + hit.id + ' · match found',
+              actions: '1 view fix · 1 dismiss',
+              width: 'fit' as const,
+            }))
           );
         }
       } else {
         emitSystemMessage(
-          '[Fixdex] Repeated failure detected. Save the fix after resolving → `fixdex save`.'
+          safeRender(() => renderLine({
+            kind: 'warning',
+            text: 'repeated failure - save the fix after resolving (fixdex save)',
+          }))
         );
       }
     }
