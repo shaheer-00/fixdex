@@ -1,0 +1,18 @@
+# Test sources/artifacts not needed at runtime
+tests/
+dist-tests/
+*.test.ts
+*.test.js
+scripts/
+
+# Local-only cruft
+*.db
+*.db-shm
+*.db-wal
+.session-counters.json
+.DS_Store
+Thumbs.db
+
+# Un-ignore build output (gitignored but needed for publish)
+!dist/
+!src/
