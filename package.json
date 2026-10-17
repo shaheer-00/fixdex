@@ -1,7 +1,37 @@
 {
   "name": "fixdex",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Claude Code's local error/fix memory — hooks + skill + MCP + web UI",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "anthropic",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "ai-agent",
+    "llm",
+    "error-memory",
+    "fix-memory",
+    "debugging",
+    "developer-tools",
+    "sqlite",
+    "offline",
+    "local-first",
+    "productivity",
+    "knowledge-base",
+    "code-assistant"
+  ],
+  "author": "shaheer-00",
+  "license": "MIT",
+  "homepage": "https://github.com/shaheer-00/fixdex#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaheer-00/fixdex.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shaheer-00/fixdex/issues"
+  },
   "bin": {
     "fixdex": "dist/cli.js",
     "fixdex-mcp": "dist/mcp.js",
