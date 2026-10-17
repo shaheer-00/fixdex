@@ -6,6 +6,7 @@
 
 [![npm version](https://img.shields.io/npm/v/fixdex)](https://www.npmjs.com/package/fixdex)
 [![M8ven Score](https://m8ven.ai/badge/mcp/shaheer-00-fixdex-qwdptn?v=213216cd3ff0e016b1010fcb638eae67)](https://m8ven.ai/mcp/shaheer-00-fixdex-qwdptn?s=readme)
+[![M8ven Score](https://m8ven.ai/badge/mcp/shaheer-00-fixdex-qwdptn)](https://m8ven.ai/mcp/shaheer-00-fixdex-qwdptn?s=readme)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-000000?logo=claude)](https://docs.anthropic.com/en/docs/claude-code)
 [![GitHub stars](https://img.shields.io/github/stars/shaheer-00/fixdex?style=social)](https://github.com/shaheer-00/fixdex)
